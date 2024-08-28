@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Recorder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #007BFF;
+        }
+        button {
+            background-color: #007BFF;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button:hover:enabled {
+            background-color: #0056b3;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Screen Recorder</h1>
+        <button id="start">Start Recording</button>
+        <button id="stop" disabled>Stop Recording</button>
+        <button id="pause" disabled>Pause Recording</button>
+        <button id="resume" disabled>Resume Recording</button>
+        <p id="status">Click "Start Recording" to begin.</p>
+    </div>
+
+    <script>
+        let start = document.getElementById('start'),
+            stop = document.getElementById('stop'),
+            pause = document.getElementById('pause'),
+            resume = document.getElementById('resume'),
+            mediaRecorder, recordedChunks = [], isRecording = false;
+
+        start.addEventListener('click', async function() {
+            try {
+                let stream = await recordScreen();
+                mediaRecorder = createRecorder(stream);
+                updateStatus("Recording started...", "green");
+                toggleButtons(true);
+            } catch (err) {
+                updateStatus("Error: " + err.message, "red");
+            }
+        });
+
+        stop.addEventListener('click', function() {
+            if (isRecording) {
+                mediaRecorder.stop();
+                updateStatus("Recording stopped.", "orange");
+                toggleButtons(false);
+            }
+        });
+
+        pause.addEventListener('click', function() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.pause();
+                updateStatus("Recording paused.", "yellow");
+                pause.disabled = true;
+                resume.disabled = false;
+            }
+        });
+
+        resume.addEventListener('click', function() {
+            if (mediaRecorder && mediaRecorder.state === 'paused') {
+                mediaRecorder.resume();
+                updateStatus("Recording resumed.", "green");
+                pause.disabled = false;
+                resume.disabled = true;
+            }
+        });
+
+        async function recordScreen() {
+            return await navigator.mediaDevices.getDisplayMedia({
+                audio: true, 
+                video: { mediaSource: "screen" }
+            });
+        }
+
+        function createRecorder(stream) {
+            const mimeType = 'video/webm; codecs=vp9';
+            const mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+            mediaRecorder.ondataavailable = function(e) {
+                if (e.data.size > 0) {
+                    recordedChunks.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = function() {
+                saveFile(recordedChunks);
+                recordedChunks = [];
+            };
+
+            mediaRecorder.start(200); // Collect 200ms of data in each chunk
+            isRecording = true;
+            return mediaRecorder;
+        }
+
+        function saveFile(recordedChunks) {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const filename = window.prompt('Enter file name', 'recording');
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = `${filename || 'recording'}.webm`;
+
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            URL.revokeObjectURL(downloadLink.href);
+            document.body.removeChild(downloadLink);
+        }
+
+        function updateStatus(message, color) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.color = color;
+        }
+
+        function toggleButtons(isRecording) {
+            start.disabled = isRecording;
+            stop.disabled = !isRecording;
+            pause.disabled = !isRecording;
+            resume.disabled = true;
+        }
+    </script>
+</body>
+</html>
